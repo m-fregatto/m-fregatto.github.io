@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Container, Input, Message, Segment } from "semantic-ui-react";
+import { Container, Input, Message, Segment } from "semantic-ui-react";
 
 interface Register {
   [key: string]: number | string; // TODO: check if string is necessary here
@@ -19,8 +19,8 @@ const Calculator: React.FC = () => {
       .filter((line) => line);
 
     lines.forEach((line) => {
-      // TODO:  Update 'registers' and 'output' as needed
-      // TODO: fix 'setLogs' to log invalid commands
+      // TODO:  Update registers and output
+      // TODO: fix setLogs to log invalid commands
     });
   };
 
@@ -46,9 +46,6 @@ const Calculator: React.FC = () => {
           }}
           defaultValue="Enter calculation"
         />
-
-        <div>Output: {output}</div>
-        <div>Logs: {logs.join(", ")}</div>
         <Message>
           <Message.Header>Output</Message.Header>
           <p>{output}</p>

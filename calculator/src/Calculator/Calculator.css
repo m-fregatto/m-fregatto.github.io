@@ -1,0 +1,26 @@
+.ui.container {
+  padding-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+}
+
+.segment {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 350px;
+  width: 500px;
+}
+
+.textArea {
+  flex-grow: 1;
+  min-height: 200px;
+}
+
+.calculateButton {
+  margin-top: 10px;
+  margin-left: 5px;
+}

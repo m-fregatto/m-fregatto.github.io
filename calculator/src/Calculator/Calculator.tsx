@@ -8,11 +8,14 @@ import {
   TextArea,
 } from "semantic-ui-react";
 
-enum OperationType {
-  Add = "add",
-  Subtract = "subtract",
-  Multiply = "multiply",
-}
+type SupportedOperation = "add" | "subtract" | "multiply";
+
+type Operation = {
+  op: string;
+  value: string | number;
+};
+
+type Register = Record<string, Operation[]>;
 
 export default function Calculator() {
   const [input, setInput] = useState(
@@ -20,17 +23,20 @@ export default function Calculator() {
   );
   const [outputs, setOutputs] = useState<number[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const VALID_OPERATIONS: SupportedOperation[] = [
+    "add",
+    "subtract",
+    "multiply",
+  ];
 
-  const quit = (registers: Record<string, number>, logs: string[]) => {
+  const quit = (registers: Register, logs: string[]) => {
     logs = [];
     registers = {};
     return;
   };
 
-  const isNumeric = (str: string) =>
+  const isNumber = (str: string) =>
     !isNaN(parseFloat(str)) && isFinite(Number(str));
-
-  const isAlphanumeric = (str: string) => /^[a-z0-9]+$/i.test(str);
 
   const clearCalculator = () => {
     setInput("");
@@ -45,62 +51,88 @@ export default function Calculator() {
       .map((line) => line.trim());
   };
 
-  function isNumber(value?: string | number): boolean {
-    return value != null && value !== "" && !isNaN(Number(value.toString()));
-  }
+  const evaluateRegister = (register: string, registers: Register): number => {
+    if (!registers[register] || registers[register].length === 0) {
+      return 0;
+    }
 
-  const getValue = (input: string, registers: Record<string, number>) => {
-    if (isNumber(input)) {
-      return Number(input);
-    }
-    if (!registers.hasOwnProperty(input)) {
-      registers[input] = 0;
-    }
-    return registers[input];
+    return registers[register].reduce((acc, { op, value }) => {
+      let operand =
+        typeof value === "number" ? value : evaluateRegister(value, registers);
+      switch (op) {
+        case "add":
+          return acc + operand;
+        case "subtract":
+          return acc - operand;
+        case "multiply":
+          return acc * operand;
+        default:
+          return acc;
+      }
+    }, 0);
   };
 
   const handleCalculation = (
     parts: string[],
-    registers: Record<string, number>,
-    logs: string[]
+    registers: Register,
+    logs: string[],
+    lineNumber: number
   ) => {
     if (parts.length !== 3) {
-      logs.push("Wrong amount of parts");
+      logs.push(
+        `Line ${lineNumber} has an incorrect format. Expected format: '<register> <operation> <value>'.`
+      );
+      return;
     }
-    if (!registers.hasOwnProperty(parts[0])) {
-      registers[parts[0]] = 0;
+
+    const [register, operation, value] = parts;
+
+    if (!VALID_OPERATIONS.includes(operation as SupportedOperation)) {
+      logs.push(
+        `Line ${lineNumber}: Unsupported operation '${operation}' was ignored`
+      );
+      return;
     }
-    const operation = parts[1];
-    switch (operation) {
-      case "add":
-        registers[parts[0]] += getValue(parts[2], registers);
-        break;
-      case "subtract":
-        registers[parts[0]] -= getValue(parts[2], registers);
-        break;
-      case "multiply":
-        registers[parts[0]] *= getValue(parts[2], registers);
-        break;
+
+    if (!registers[register]) {
+      registers[register] = [];
     }
+
+    registers[register].push({
+      op: operation,
+      value: isNumber(value) ? Number(value) : value,
+    });
   };
 
   const processInput = (inputValue: string) => {
+    if (inputValue.trim().length === 0) {
+      setLogs(["Please enter an input"]);
+      return;
+    }
     const lines = parseInputToCommands(inputValue);
 
     const outputs: number[] = [];
-    const registers: Record<string, number> = {};
+    const registers: Register = {};
     const logs: string[] = [];
+    let lineNumber = 0;
 
     lines.forEach((line) => {
-      if (line === "quit") {
+      lineNumber++;
+      if (line.trim().length === 0) {
+        logs.push(`Line ${lineNumber} is empty and was ignored.`);
+        return;
+      }
+
+      if (line.trim() === "quit") {
         quit(registers, logs);
         return;
       }
+
       const parts = line.split(/\s+/);
 
       parts[0] === "print"
-        ? outputs.push(registers[parts[1]])
-        : handleCalculation(parts, registers, logs);
+        ? outputs.push(evaluateRegister(parts[1], registers))
+        : handleCalculation(parts, registers, logs, lineNumber);
     });
     setLogs(logs);
     setOutputs(outputs);
@@ -145,6 +177,7 @@ export default function Calculator() {
         </Message>
         <Message>
           <Message.Header>Logs</Message.Header>
+          {logs.length > 0 && <p>Error:</p>}
           {logs.map((log, index) => (
             <p key={index}>{log}</p>
           ))}

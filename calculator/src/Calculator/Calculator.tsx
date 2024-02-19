@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import "./Calculator.css";
 import {
   Button,
   Container,
+  Form,
   Message,
   Segment,
   TextArea,
 } from "semantic-ui-react";
+import { FileInput } from "../FileInputComponent/FileInputComponent";
 
 type SupportedOperation = "add" | "subtract" | "multiply";
 
@@ -51,107 +53,140 @@ export default function Calculator() {
       .map((line) => line.trim());
   };
 
-  const evaluateRegister = (register: string, registers: Register): number => {
-    if (!registers[register] || registers[register].length === 0) {
-      return 0;
-    }
-
-    return registers[register].reduce((acc, { op, value }) => {
-      let operand =
-        typeof value === "number" ? value : evaluateRegister(value, registers);
-      switch (op) {
-        case "add":
-          return acc + operand;
-        case "subtract":
-          return acc - operand;
-        case "multiply":
-          return acc * operand;
-        default:
-          return acc;
+  const evaluateRegister = useCallback(
+    (register: string, registers: Register): number => {
+      if (!registers[register] || registers[register].length === 0) {
+        return 0;
       }
-    }, 0);
-  };
 
-  const handleCalculation = (
-    parts: string[],
-    registers: Register,
-    logs: string[],
-    lineNumber: number
-  ) => {
-    if (parts.length !== 3) {
-      logs.push(
-        `Line ${lineNumber} has an incorrect format. Expected format: '<register> <operation> <value>'.`
-      );
-      return;
-    }
+      return registers[register].reduce((acc, { op, value }) => {
+        let operand =
+          typeof value === "number"
+            ? value
+            : evaluateRegister(value, registers);
+        switch (op) {
+          case "add":
+            return acc + operand;
+          case "subtract":
+            return acc - operand;
+          case "multiply":
+            return acc * operand;
+          default:
+            return acc;
+        }
+      }, 0);
+    },
+    []
+  );
 
-    const [register, operation, value] = parts;
-
-    if (!VALID_OPERATIONS.includes(operation as SupportedOperation)) {
-      logs.push(
-        `Line ${lineNumber}: Unsupported operation '${operation}' was ignored`
-      );
-      return;
-    }
-
-    if (!registers[register]) {
-      registers[register] = [];
-    }
-
-    registers[register].push({
-      op: operation,
-      value: isNumber(value) ? Number(value) : value,
-    });
-  };
-
-  const processInput = (inputValue: string) => {
-    if (inputValue.trim().length === 0) {
-      setLogs(["Please enter an input"]);
-      return;
-    }
-    const lines = parseInputToCommands(inputValue);
-
-    const outputs: number[] = [];
-    const registers: Register = {};
-    const logs: string[] = [];
-    let lineNumber = 0;
-
-    lines.forEach((line) => {
-      lineNumber++;
-      if (line.trim().length === 0) {
-        logs.push(`Line ${lineNumber} is empty and was ignored.`);
+  const handleCalculation = useCallback(
+    (
+      parts: string[],
+      registers: Register,
+      logs: string[],
+      lineNumber: number
+    ) => {
+      if (parts.length !== 3) {
+        logs.push(
+          `Error: line ${lineNumber} has an incorrect format. Expected format: '<register> <operation> <value>'.`
+        );
         return;
       }
 
-      if (line.trim() === "quit") {
-        quit(registers, logs);
+      const [register, operation, value] = parts;
+
+      if (!VALID_OPERATIONS.includes(operation as SupportedOperation)) {
+        logs.push(
+          `Line ${lineNumber}: Unsupported operation '${operation}' was ignored`
+        );
         return;
       }
 
-      const parts = line.split(/\s+/);
+      if (!registers[register]) {
+        registers[register] = [];
+      }
 
-      parts[0] === "print"
-        ? outputs.push(evaluateRegister(parts[1], registers))
-        : handleCalculation(parts, registers, logs, lineNumber);
-    });
-    setLogs(logs);
-    setOutputs(outputs);
-  };
+      registers[register].push({
+        op: operation,
+        value: isNumber(value) ? Number(value) : value,
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const processInput = useCallback(
+    (inputValue: string, isFileInput = false) => {
+      if (inputValue.trim().length === 0) {
+        setLogs(["Please enter an input"]);
+        return;
+      }
+      const lines = parseInputToCommands(inputValue);
+
+      const outputs: number[] = [];
+      const registers: Register = {};
+      const logs: string[] = [];
+      let lineNumber = 0;
+
+      lines.forEach((line) => {
+        lineNumber++;
+        if (line.trim().length === 0) {
+          logs.push(`Line ${lineNumber} is empty and was ignored.`);
+          return;
+        }
+
+        if (!isFileInput && line.trim() === "quit") {
+          quit(registers, logs);
+          return;
+        }
+
+        const parts = line.split(/\s+/);
+
+        parts[0] === "print"
+          ? outputs.push(evaluateRegister(parts[1], registers))
+          : handleCalculation(parts, registers, logs, lineNumber);
+      });
+      setLogs(logs);
+      setOutputs(outputs);
+    },
+    [evaluateRegister, handleCalculation]
+  );
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(event.target.value);
   };
 
+  const handleFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = (e.target as FileReader).result;
+        if (typeof text === "string") {
+          processInput(text, true);
+        }
+      };
+      reader.readAsText(file);
+    },
+    [processInput]
+  );
+
   return (
     <Container className="container">
       <Segment className="segment">
-        <TextArea
-          placeholder="Enter calculation: <register> <operation> <value>"
-          className="textArea"
-          value={input}
-          maxLength={200}
-          onChange={handleInputChange}
-        />
+        <Form>
+          <TextArea
+            placeholder="Enter calculation: <register> <operation> <value>"
+            className="textArea"
+            value={input}
+            maxLength={200}
+            onChange={handleInputChange}
+          />
+        </Form>
         <Button
           color="teal"
           content="Calculate"
@@ -169,6 +204,10 @@ export default function Calculator() {
           onClick={clearCalculator}
           style={{ marginTop: "10px" }}
         />
+        <FileInput
+          onFileSelected={handleFileChange}
+          acceptedFormats={[".txt"]}
+        />
         <Message>
           <Message.Header>Output</Message.Header>
           {outputs.map((output, index) => (
@@ -177,7 +216,6 @@ export default function Calculator() {
         </Message>
         <Message>
           <Message.Header>Logs</Message.Header>
-          {logs.length > 0 && <p>Error:</p>}
           {logs.map((log, index) => (
             <p key={index}>{log}</p>
           ))}

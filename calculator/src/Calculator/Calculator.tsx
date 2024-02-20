@@ -1,13 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import "./Calculator.css";
-import {
-  Button,
-  Container,
-  Form,
-  Message,
-  Segment,
-  TextArea,
-} from "semantic-ui-react";
+import { Button, Form, Message, Segment, TextArea } from "semantic-ui-react";
 import { FileInput } from "../FileInputComponent/FileInputComponent";
 
 type SupportedOperation = "add" | "subtract" | "multiply";
@@ -19,17 +12,15 @@ type Operation = {
 
 type Register = Record<string, Operation[]>;
 
+const VALID_OPERATIONS: SupportedOperation[] = ["add", "subtract", "multiply"];
+const VALID_FILE_FORMATS = [".txt"];
+const MAX_FILE_SIZE_2MB = 2 * 1024 * 1024;
+
 export default function Calculator() {
-  const [input, setInput] = useState(
-    "A add 2 \n print A \nA add 3 \n print A \nB add 9 \nprint B \nquit"
-  );
+  const [input, setInput] = useState("");
   const [outputs, setOutputs] = useState<number[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
-  const VALID_OPERATIONS: SupportedOperation[] = [
-    "add",
-    "subtract",
-    "multiply",
-  ];
+  const fileInputWrapperRef = useRef<HTMLDivElement>(null);
 
   const quit = (registers: Register, logs: string[]) => {
     logs = [];
@@ -44,6 +35,12 @@ export default function Calculator() {
     setInput("");
     setOutputs([]);
     setLogs([]);
+    if (fileInputWrapperRef.current) {
+      const input = fileInputWrapperRef.current.querySelector("input");
+      if (input) {
+        input.value = "";
+      }
+    }
   };
 
   const parseInputToCommands = (inputValue: string) => {
@@ -54,7 +51,12 @@ export default function Calculator() {
   };
 
   const evaluateRegister = useCallback(
-    (register: string, registers: Register): number => {
+    (register: string, registers: Register, logs: string[]): number => {
+      if (!registers[register]) {
+        logs.push(`Attempted to evaluate undefined register '${register}'.`);
+        return 0;
+      }
+
       if (!registers[register] || registers[register].length === 0) {
         return 0;
       }
@@ -63,7 +65,7 @@ export default function Calculator() {
         let operand =
           typeof value === "number"
             ? value
-            : evaluateRegister(value, registers);
+            : evaluateRegister(value, registers, logs);
         switch (op) {
           case "add":
             return acc + operand;
@@ -111,7 +113,6 @@ export default function Calculator() {
         value: isNumber(value) ? Number(value) : value,
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -143,7 +144,7 @@ export default function Calculator() {
         const parts = line.split(/\s+/);
 
         parts[0] === "print"
-          ? outputs.push(evaluateRegister(parts[1], registers))
+          ? outputs.push(evaluateRegister(parts[1], registers, logs))
           : handleCalculation(parts, registers, logs, lineNumber);
       });
       setLogs(logs);
@@ -156,6 +157,10 @@ export default function Calculator() {
     setInput(event.target.value);
   };
 
+  const logError = useCallback((message: string) => {
+    setLogs((prevLogs) => [...prevLogs, message]);
+  }, []);
+
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files && event.target.files[0];
@@ -163,7 +168,22 @@ export default function Calculator() {
         return;
       }
 
+      const fileExtension = file.name.split(".").pop()?.toLowerCase();
+
+      if (!fileExtension || !VALID_FILE_FORMATS.includes("." + fileExtension)) {
+        logError(`Unsupported file format: ${fileExtension}`);
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE_2MB) {
+        logError(`File size exceeds the limit of 2MB: ${file.name}`);
+        return;
+      }
+
       const reader = new FileReader();
+      reader.onerror = (error) => {
+        logError(`File read error: ${error}`);
+      };
       reader.onload = (e) => {
         const text = (e.target as FileReader).result;
         if (typeof text === "string") {
@@ -172,55 +192,55 @@ export default function Calculator() {
       };
       reader.readAsText(file);
     },
-    [processInput]
+
+    [logError, processInput]
   );
 
   return (
-    <Container className="container">
-      <Segment className="segment">
-        <Form>
-          <TextArea
-            placeholder="Enter calculation: <register> <operation> <value>"
-            className="textArea"
-            value={input}
-            maxLength={200}
-            onChange={handleInputChange}
-          />
-        </Form>
-        <Button
-          color="teal"
-          content="Calculate"
-          icon="calculator"
-          labelPosition="right"
-          onClick={() => processInput(input)}
-          className="calculateButton"
-          style={{ marginTop: "10px" }}
+    <Segment raised className="segment">
+      <Form>
+        <TextArea
+          placeholder="Enter calculation: <register> <operation> <value>"
+          className="textArea"
+          value={input}
+          maxLength={200}
+          onChange={handleInputChange}
         />
-        <Button
-          color="red"
-          icon="delete"
-          content="Clear"
-          labelPosition="right"
-          onClick={clearCalculator}
-          style={{ marginTop: "10px" }}
-        />
-        <FileInput
-          onFileSelected={handleFileChange}
-          acceptedFormats={[".txt"]}
-        />
-        <Message>
-          <Message.Header>Output</Message.Header>
-          {outputs.map((output, index) => (
-            <p key={index}>{output}</p>
-          ))}
-        </Message>
-        <Message>
-          <Message.Header>Logs</Message.Header>
-          {logs.map((log, index) => (
-            <p key={index}>{log}</p>
-          ))}
-        </Message>
-      </Segment>
-    </Container>
+      </Form>
+      <Button
+        color="teal"
+        content="Calculate"
+        icon="calculator"
+        labelPosition="right"
+        onClick={() => processInput(input)}
+        className="calculateButton"
+        style={{ marginTop: "10px" }}
+      />
+      <Button
+        color="red"
+        icon="delete"
+        content="Clear"
+        labelPosition="right"
+        onClick={clearCalculator}
+        style={{ marginTop: "10px" }}
+      />
+      <FileInput
+        wrapperRef={fileInputWrapperRef}
+        onFileSelected={handleFileChange}
+        acceptedFormats={VALID_FILE_FORMATS}
+      />
+      <Message>
+        <Message.Header>Output</Message.Header>
+        {outputs.map((output, index) => (
+          <p key={index}>{output}</p>
+        ))}
+      </Message>
+      <Message>
+        <Message.Header>Logs</Message.Header>
+        {logs.map((log, index) => (
+          <p key={index}>{log}</p>
+        ))}
+      </Message>
+    </Segment>
   );
 }

@@ -2,6 +2,14 @@
   text-align: center;
   padding-top: 30px;
   background-color: #3d4657;
+  width: 100vw;
+  height: 100vh;
+}
+
+.grid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .App-logo {
@@ -10,6 +18,7 @@
 }
 
 .App-header {
+  margin: 30px;
   background-color: #3d4657;
   font-size: calc(10px + 2vmin);
   color: #282c34;

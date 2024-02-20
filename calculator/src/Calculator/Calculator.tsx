@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from "react";
 import "./Calculator.css";
 import { Button, Form, Message, Segment, TextArea } from "semantic-ui-react";
 import { FileInput } from "../FileInputComponent/FileInputComponent";
+import { isNumber, parseInputToCommands } from "../Services/CalculatorService";
 
 type SupportedOperation = "add" | "subtract" | "multiply";
 
@@ -15,15 +16,13 @@ type Register = Record<string, Operation[]>;
 const VALID_OPERATIONS: SupportedOperation[] = ["add", "subtract", "multiply"];
 const VALID_FILE_FORMATS = [".txt"];
 const MAX_FILE_SIZE_2MB = 2 * 1024 * 1024;
+const MAX_RECURSIVE_DEPTH = 20;
 
 export default function Calculator() {
   const [input, setInput] = useState("");
   const [outputs, setOutputs] = useState<number[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const fileInputWrapperRef = useRef<HTMLDivElement>(null);
-
-  const isNumber = (str: string) =>
-    !isNaN(parseFloat(str)) && isFinite(Number(str));
 
   const clearCalculator = () => {
     setInput("");
@@ -36,44 +35,6 @@ export default function Calculator() {
       }
     }
   };
-
-  const parseInputToCommands = (inputValue: string) => {
-    return inputValue
-      .toLowerCase()
-      .split("\n")
-      .map((line) => line.trim());
-  };
-
-  const evaluateRegister = useCallback(
-    (register: string, registers: Register, logs: string[]): number => {
-      if (!registers[register]) {
-        logs.push(`Attempted to evaluate undefined register '${register}'.`);
-        return 0;
-      }
-
-      if (!registers[register] || registers[register].length === 0) {
-        return 0;
-      }
-
-      return registers[register].reduce((acc, { op, value }) => {
-        let operand =
-          typeof value === "number"
-            ? value
-            : evaluateRegister(value, registers, logs);
-        switch (op) {
-          case "add":
-            return acc + operand;
-          case "subtract":
-            return acc - operand;
-          case "multiply":
-            return acc * operand;
-          default:
-            return acc;
-        }
-      }, 0);
-    },
-    []
-  );
 
   const handleCalculation = useCallback(
     (
@@ -147,7 +108,7 @@ export default function Calculator() {
         const parts = line.split(/\s+/);
 
         parts[0] === "print"
-          ? outputs.push(evaluateRegister(parts[1], registers, logs))
+          ? outputs.push(evaluateRegister(parts[1], registers, logs, 0))
           : handleCalculation(parts, registers, logs, lineNumber);
         lineNumber++;
       }
@@ -155,7 +116,7 @@ export default function Calculator() {
       setLogs(logs);
       setOutputs(outputs);
     },
-    [evaluateRegister, handleCalculation]
+    [handleCalculation]
   );
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -248,4 +209,45 @@ export default function Calculator() {
       </Message>
     </Segment>
   );
+}
+
+export function evaluateRegister(
+  register: string,
+  registers: Register,
+  logs: string[],
+  depth: number
+): number {
+  if (depth >= MAX_RECURSIVE_DEPTH) {
+    logs.push(
+      `Maximum recursive depth (${MAX_RECURSIVE_DEPTH}) for lazy loading reached. Possibly missing a value for a register.`
+    );
+    return 0;
+  }
+  if (!registers[register]) {
+    logs.push(`Attempted to evaluate undefined register '${register}'.`);
+    return 0;
+  }
+
+  if (!registers[register] || registers[register].length === 0) {
+    return 0;
+  }
+
+  depth++;
+
+  return registers[register].reduce((acc, { op, value }) => {
+    let operand =
+      typeof value === "number"
+        ? value
+        : evaluateRegister(value, registers, logs, depth);
+    switch (op) {
+      case "add":
+        return acc + operand;
+      case "subtract":
+        return acc - operand;
+      case "multiply":
+        return acc * operand;
+      default:
+        return acc;
+    }
+  }, 0);
 }

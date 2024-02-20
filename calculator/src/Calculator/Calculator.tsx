@@ -22,12 +22,6 @@ export default function Calculator() {
   const [logs, setLogs] = useState<string[]>([]);
   const fileInputWrapperRef = useRef<HTMLDivElement>(null);
 
-  const quit = (registers: Register, logs: string[]) => {
-    logs = [];
-    registers = {};
-    return;
-  };
-
   const isNumber = (str: string) =>
     !isNaN(parseFloat(str)) && isFinite(Number(str));
 
@@ -125,20 +119,29 @@ export default function Calculator() {
       const lines = parseInputToCommands(inputValue);
 
       const outputs: number[] = [];
-      const registers: Register = {};
+      let registers: Register = {};
       const logs: string[] = [];
-      let lineNumber = 0;
+      let lineNumber = 1;
 
-      lines.forEach((line) => {
-        lineNumber++;
+      for (let line of lines) {
         if (line.trim().length === 0) {
           logs.push(`Line ${lineNumber} is empty and was ignored.`);
-          return;
+          continue;
         }
 
         if (!isFileInput && line.trim() === "quit") {
-          quit(registers, logs);
-          return;
+          registers = {};
+          if (lineNumber < lines.length) {
+            const remainingLines = lines
+              .slice(lineNumber)
+              .map((l) => (l === "" ? "EMPTY LINE" : l))
+              .join(", ");
+
+            logs.push(
+              `The following lines after quit will be ignored: ${remainingLines}`
+            );
+          }
+          break;
         }
 
         const parts = line.split(/\s+/);
@@ -146,7 +149,9 @@ export default function Calculator() {
         parts[0] === "print"
           ? outputs.push(evaluateRegister(parts[1], registers, logs))
           : handleCalculation(parts, registers, logs, lineNumber);
-      });
+        lineNumber++;
+      }
+
       setLogs(logs);
       setOutputs(outputs);
     },

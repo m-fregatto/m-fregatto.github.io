@@ -1,10 +1,10 @@
 export function isNumber(str: string) {
-  return !isNaN(parseFloat(str)) && isFinite(Number(str));
+  return /^-?\d+(\.\d+)?$/.test(str);
 }
 
 export function parseInputToCommands(inputValue: string) {
   return inputValue
     .toLowerCase()
     .split("\n")
-    .map((line) => line.trim());
+    .map((line) => line.trim().replace(/\s+/g, " "));
 }

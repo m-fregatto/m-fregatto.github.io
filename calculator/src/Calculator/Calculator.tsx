@@ -36,41 +36,6 @@ export default function Calculator() {
     }
   };
 
-  const handleCalculation = useCallback(
-    (
-      parts: string[],
-      registers: Register,
-      logs: string[],
-      lineNumber: number
-    ) => {
-      if (parts.length !== 3) {
-        logs.push(
-          `Error: line ${lineNumber} has an incorrect format. Expected format: '<register> <operation> <value>'.`
-        );
-        return;
-      }
-
-      const [register, operation, value] = parts;
-
-      if (!VALID_OPERATIONS.includes(operation as SupportedOperation)) {
-        logs.push(
-          `Line ${lineNumber}: Unsupported operation '${operation}' was ignored`
-        );
-        return;
-      }
-
-      if (!registers[register]) {
-        registers[register] = [];
-      }
-
-      registers[register].push({
-        op: operation,
-        value: isNumber(value) ? Number(value) : value,
-      });
-    },
-    []
-  );
-
   const processInput = useCallback(
     (inputValue: string, isFileInput = false) => {
       if (inputValue.trim().length === 0) {
@@ -92,6 +57,7 @@ export default function Calculator() {
 
         if (!isFileInput && line.trim() === "quit") {
           registers = {};
+
           if (lineNumber < lines.length) {
             const remainingLines = lines
               .slice(lineNumber)
@@ -174,6 +140,7 @@ export default function Calculator() {
         />
       </Form>
       <Button
+        disabled={input === "" ? true : false}
         color="teal"
         content="Calculate"
         icon="calculator"
@@ -250,4 +217,36 @@ export function evaluateRegister(
         return acc;
     }
   }, 0);
+}
+
+export function handleCalculation(
+  parts: string[],
+  registers: Register,
+  logs: string[],
+  lineNumber: number
+): void {
+  if (parts.length !== 3) {
+    logs.push(
+      `Error: line ${lineNumber} has an incorrect format. Expected format: '<register> <operation> <value>'.`
+    );
+    return;
+  }
+
+  const [register, operation, value] = parts;
+
+  if (!VALID_OPERATIONS.includes(operation as SupportedOperation)) {
+    logs.push(
+      `Line ${lineNumber}: Unsupported operation '${operation}' was ignored`
+    );
+    return;
+  }
+
+  if (!registers[register]) {
+    registers[register] = [];
+  }
+
+  registers[register].push({
+    op: operation,
+    value: isNumber(value) ? Number(value) : value,
+  });
 }
